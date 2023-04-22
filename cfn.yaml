@@ -1,0 +1,489 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Desafio Solvimm Wordpress
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.16.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: SolvimmVPC
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Solvimm-IGW
+  InternetGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  RTPub:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Solvimm-VPC-RT-pub
+  RTPubDefaultIPv4: 
+    Type: 'AWS::EC2::Route'
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId:
+        Ref: RTPub
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId:
+        Ref: InternetGateway
+  RTAssociationPubA:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref SNPUBA
+      RouteTableId:
+        Ref: RTPub
+  RTAssociationPubB:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref SNPUBB
+      RouteTableId:
+        Ref: RTPub
+  RTAssociationPubC:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref SNPUBC
+      RouteTableId:
+        Ref: RTPub
+  SNDBA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.16.16.0/20
+      Tags:
+        - Key: Name
+          Value: sn-db-A
+  SNDBB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.16.80.0/20
+      Tags:
+        - Key: Name
+          Value: sn-db-B
+  SNDBC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: 10.16.144.0/20
+      Tags:
+        - Key: Name
+          Value: sn-db-C
+  SNAPPA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.16.32.0/20
+      Tags:
+        - Key: Name
+          Value: sn-app-A
+  SNAPPB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.16.96.0/20
+      Tags:
+        - Key: Name
+          Value: sn-app-B
+  SNAPPC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: 10.16.160.0/20
+      Tags:
+        - Key: Name
+          Value: sn-app-C
+  SNPUBA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.16.48.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: sn-pub-A
+  SNPUBB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.16.112.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: sn-pub-B
+  SNPUBC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: 10.16.176.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: sn-pub-C
+  SGWordpress:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Control access to Wordpress Instance(s)
+      SecurityGroupIngress: 
+        - Description: 'Allow HTTP IPv4 IN'
+          IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '0.0.0.0/0'
+  SGDatabase:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Control access to Database
+      SecurityGroupIngress: 
+        - Description: 'Allow MySQL IN'
+          IpProtocol: tcp
+          FromPort: '3306'
+          ToPort: '3306'
+          SourceSecurityGroupId: !Ref SGWordpress
+  SGLoadBalancer:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Control access to Load Balancer
+      SecurityGroupIngress: 
+        - Description: 'Allow HTTP IPv4 IN'
+          IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '0.0.0.0/0'
+  SGEFS:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Control access to EFS
+      SecurityGroupIngress: 
+        - Description: 'Allow NFS/EFS IPv4 IN'
+          IpProtocol: tcp
+          FromPort: '2049'
+          ToPort: '2049'
+          SourceSecurityGroupId: !Ref SGWordpress
+  WordpressRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns: 
+        - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+        - "arn:aws:iam::aws:policy/AmazonSSMFullAccess"
+        - "arn:aws:iam::aws:policy/AmazonElasticFileSystemClientFullAccess"
+  WordpressInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref WordpressRole
+  CWAgentConfig:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: 'String'
+      Value: |
+        {
+          "agent": {
+            "metrics_collection_interval": 60,
+            "run_as_user": "root"
+          },
+          "logs": {
+            "logs_collected": {
+              "files": {
+                "collect_list": [
+                  {
+                    "file_path": "/var/log/secure",
+                    "log_group_name": "/var/log/secure",
+                    "log_stream_name": "{instance_id}"
+                  },
+                  {
+                    "file_path": "/var/log/httpd/access_log",
+                    "log_group_name": "/var/log/httpd/access_log",
+                    "log_stream_name": "{instance_id}"
+                  },
+                  {
+                    "file_path": "/var/log/httpd/error_log",
+                    "log_group_name": "/var/log/httpd/error_log",
+                    "log_stream_name": "{instance_id}"
+                  }
+                ]
+              }
+            }
+          },
+          "metrics": {
+            "append_dimensions": {
+              "AutoScalingGroupName": "${aws:AutoScalingGroupName}",
+              "ImageId": "${aws:ImageId}",
+              "InstanceId": "${aws:InstanceId}",
+              "InstanceType": "${aws:InstanceType}"
+            },
+            "metrics_collected": {
+              "collectd": {
+                "metrics_aggregation_interval": 60
+              },
+              "cpu": {
+                "measurement": [
+                  "cpu_usage_idle",
+                  "cpu_usage_iowait",
+                  "cpu_usage_user",
+                  "cpu_usage_system"
+                ],
+                "metrics_collection_interval": 60,
+                "resources": [
+                  "*"
+                ],
+                "totalcpu": false
+              },
+              "disk": {
+                "measurement": [
+                  "used_percent",
+                  "inodes_free"
+                ],
+                "metrics_collection_interval": 60,
+                "resources": [
+                  "*"
+                ]
+              },
+              "diskio": {
+                "measurement": [
+                  "io_time",
+                  "write_bytes",
+                  "read_bytes",
+                  "writes",
+                  "reads"
+                ],
+                "metrics_collection_interval": 60,
+                "resources": [
+                  "*"
+                ]
+              },
+              "mem": {
+                "measurement": [
+                  "mem_used_percent"
+                ],
+                "metrics_collection_interval": 60
+              },
+              "netstat": {
+                "measurement": [
+                  "tcp_established",
+                  "tcp_time_wait"
+                ],
+                "metrics_collection_interval": 60
+              },
+              "statsd": {
+                "metrics_aggregation_interval": 60,
+                "metrics_collection_interval": 10,
+                "service_address": ":8125"
+              },
+              "swap": {
+                "measurement": [
+                  "swap_used_percent"
+                ],
+                "metrics_collection_interval": 60
+              }
+            }
+          }
+        }
+  myDBSubnetGroup: 
+    Properties: 
+      DBSubnetGroupDescription: RDS Subnet Group for WordPress
+      SubnetIds: 
+        - !Ref SNDBA
+        - !Ref SNDBB
+        - !Ref SNDBC
+      Tags: 
+        - 
+          Key: Name
+          Value: WordPressRDSSubNetGroup
+    Type: "AWS::RDS::DBSubnetGroup"
+  rdsDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 50
+      DBInstanceClass: db.t3.micro
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      AvailabilityZone: us-east-1a
+      BackupRetentionPeriod: 7
+      DBInstanceIdentifier: SolvimmWordPress
+      DBName: solvimmwpdb
+      DBSubnetGroupName: !Ref myDBSubnetGroup
+      Engine: mysql
+      EngineVersion: 8.0.23
+      MasterUsername: solvimmwpuser
+      MasterUserPassword: 30Lv1mMp4s3W0rD
+      MultiAZ: false
+      Port: 3306
+      PubliclyAccessible: false
+      StorageEncrypted: false
+      VPCSecurityGroups:
+        - !Ref SGDatabase
+      Tags:
+        - Key: Name
+          Value: SolvimmWordPress 
+  FileSystemResource:
+    Type: 'AWS::EFS::FileSystem'
+    Properties:
+      BackupPolicy:
+        Status: ENABLED
+      PerformanceMode: generalPurpose
+      Encrypted: false
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_30_DAYS
+        - TransitionToPrimaryStorageClass: AFTER_1_ACCESS
+      FileSystemTags:
+        - Key: Name
+          Value: Solvimm-WORDPRESS-CONTENT
+  MountTargetResource1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystemResource
+      SubnetId: !Ref SNAPPA
+      SecurityGroups:
+      - !Ref SGEFS
+  MountTargetResource2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystemResource
+      SubnetId: !Ref SNAPPB
+      SecurityGroups:
+      - !Ref SGEFS
+  MountTargetResource3:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystemResource
+      SubnetId: !Ref SNAPPC
+      SecurityGroups:
+      - !Ref SGEFS
+  myLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${AWS::StackName}-launch-template
+      LaunchTemplateData:
+        ImageId: ami-09d3b3274b6c5d4aa
+        InstanceType: t2.micro
+        IamInstanceProfile:
+          Name: !Ref WordpressInstanceProfile
+        SecurityGroupIds: 
+          - !Ref SGWordpress
+        UserData:
+          Fn::Base64: 
+            !Sub |
+              #!/bin/bash -xe
+
+              ALBDNSNAME=$(aws ssm get-parameters --region us-east-1 --names /Solvimm/Wordpress/ALBDNSNAME --query Parameters[0].Value)
+              ALBDNSNAME=`echo $ALBDNSNAME | sed -e 's/^"//' -e 's/"$//'`
+
+              EFSFSID=$(aws ssm get-parameters --region us-east-1 --names /Solvimm/Wordpress/EFSFSID --query Parameters[0].Value)
+              EFSFSID=`echo $EFSFSID | sed -e 's/^"//' -e 's/"$//'`
+
+              DBPassword=$(aws ssm get-parameters --region us-east-1 --names /Solvimm/Wordpress/DBPassword --with-decryption --query Parameters[0].Value)
+              DBPassword=`echo $DBPassword | sed -e 's/^"//' -e 's/"$//'`
+
+              DBRootPassword=$(aws ssm get-parameters --region us-east-1 --names /Solvimm/Wordpress/DBRootPassword --with-decryption --query Parameters[0].Value)
+              DBRootPassword=`echo $DBRootPassword | sed -e 's/^"//' -e 's/"$//'`
+
+              DBUser=$(aws ssm get-parameters --region us-east-1 --names /Solvimm/Wordpress/DBUser --query Parameters[0].Value)
+              DBUser=`echo $DBUser | sed -e 's/^"//' -e 's/"$//'`
+
+              DBName=$(aws ssm get-parameters --region us-east-1 --names /Solvimm/Wordpress/DBName --query Parameters[0].Value)
+              DBName=`echo $DBName | sed -e 's/^"//' -e 's/"$//'`
+
+              DBEndpoint=$(aws ssm get-parameters --region us-east-1 --names /Solvimm/Wordpress/DBEndpoint --query Parameters[0].Value)
+              DBEndpoint=`echo $DBEndpoint | sed -e 's/^"//' -e 's/"$//'`
+
+              yum -y update
+              yum -y upgrade
+
+              yum install -y mariadb-server httpd wget amazon-efs-utils
+              amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+              amazon-linux-extras install epel -y
+              yum install stress -y
+
+              systemctl enable httpd
+              systemctl start httpd
+
+              mkdir -p /var/www/html/wp-content
+              chown -R ec2-user:apache /var/www/
+              echo -e "$EFSFSID:/ /var/www/html/wp-content efs _netdev,tls,iam 0 0" >> /etc/fstab
+              mount -a -t efs defaults
+
+              wget http://wordpress.org/latest.tar.gz -P /var/www/html
+              cd /var/www/html
+              tar -zxvf latest.tar.gz
+              cp -rvf wordpress/* .
+              rm -R wordpress
+              rm latest.tar.gz
+
+              sudo cp ./wp-config-sample.php ./wp-config.php
+              sed -i "s/'database_name_here'/'$DBName'/g" wp-config.php
+              sed -i "s/'username_here'/'$DBUser'/g" wp-config.php
+              sed -i "s/'password_here'/'$DBPassword'/g" wp-config.php
+              sed -i "s/'localhost'/'$DBEndpoint'/g" wp-config.php
+
+              usermod -a -G apache ec2-user   
+              chown -R ec2-user:apache /var/www
+              chmod 2775 /var/www
+              find /var/www -type d -exec chmod 2775 {} \;
+              find /var/www -type f -exec chmod 0664 {} \;
+
+              cat >> /home/ec2-user/update_wp_ip.sh<< 'EOF'
+              #!/bin/bash
+              source <(php -r 'require("/var/www/html/wp-config.php"); echo("DB_NAME=".DB_NAME."; DB_USER=".DB_USER."; DB_PASSWORD=".DB_PASSWORD."; DB_HOST=".DB_HOST); ')
+              SQL_COMMAND="mysql -u $DB_USER -h $DB_HOST -p$DB_PASSWORD $DB_NAME -e"
+              OLD_URL=$(mysql -u $DB_USER -h $DB_HOST -p$DB_PASSWORD $DB_NAME -e 'select option_value from wp_options where option_id = 1;' | grep http)
+
+              ALBDNSNAME=$(aws ssm get-parameters --region us-east-1 --names /Solvimm/Wordpress/ALBDNSNAME --query Parameters[0].Value)
+              ALBDNSNAME=`echo $ALBDNSNAME | sed -e 's/^"//' -e 's/"$//'`
+
+              $SQL_COMMAND "UPDATE wp_options SET option_value = replace(option_value, '$OLD_URL', 'http://$ALBDNSNAME') WHERE option_name = 'home' OR option_name = 'siteurl';"
+              $SQL_COMMAND "UPDATE wp_posts SET guid = replace(guid, '$OLD_URL','http://$ALBDNSNAME');"
+              $SQL_COMMAND "UPDATE wp_posts SET post_content = replace(post_content, '$OLD_URL', 'http://$ALBDNSNAME');"
+              $SQL_COMMAND "UPDATE wp_postmeta SET meta_value = replace(meta_value,'$OLD_URL','http://$ALBDNSNAME');"
+              EOF
+
+              chmod 755 /home/ec2-user/update_wp_ip.sh
+              echo "/home/ec2-user/update_wp_ip.sh" >> /etc/rc.local
+              /home/ec2-user/update_wp_ip.sh
+  myASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref myLaunchTemplate
+        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
+      MaxSize: '3'
+      MinSize: '1'
+      DesiredCapacity: '1'
+      VPCZoneIdentifier: 
+        - !Ref SNPUBA
+        - !Ref SNPUBB
+        - !Ref SNPUBC
